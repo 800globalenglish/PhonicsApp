@@ -51,6 +51,24 @@ class _ResourceBrowserScreenState extends State<ResourceBrowserScreen> {
   // Same filtering logic used in build() to get this screen's word items —
   // pulled out here so _playAll can use it too without duplicating it
   // inline, and so both stay in sync if the filtering logic ever changes.
+  // Puts completed items (checked words, or folders that are fully done)
+  // at the bottom of the list, while keeping everything else in its normal
+  // sort order. Applied consistently to both folders and words.
+  List<ResourceItem> _sortWithCompletedAtBottom(List<ResourceItem> raw) {
+    final sorted = [...raw]..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+    final incomplete = <ResourceItem>[];
+    final complete = <ResourceItem>[];
+    for (final item in sorted) {
+      final isDone = item.isFolder ? _isFolderComplete(item.id) : _completedIds.contains(item.id);
+      if (isDone) {
+        complete.add(item);
+      } else {
+        incomplete.add(item);
+      }
+    }
+    return [...incomplete, ...complete];
+  }
+
   List<ResourceItem> _getWordSiblings() {
     if (_allItems == null) return [];
     final children = _allItems!
@@ -71,7 +89,7 @@ class _ResourceBrowserScreenState extends State<ResourceBrowserScreen> {
       return;
     }
 
-    final words = _getWordSiblings();
+    final words = _getWordSiblings().where((w) => !_completedIds.contains(w.id)).toList();
     if (words.isEmpty) return;
 
     setState(() => _isPlayingAll = true);
@@ -237,11 +255,16 @@ class _ResourceBrowserScreenState extends State<ResourceBrowserScreen> {
   String get _imagesBaseUrl => 'https://cdn.800globalenglish.com/content/tradelingo/images';
   String get _thumbBaseUrl => 'https://cdn.800globalenglish.com/content/tradelingo/images/tmb';
   // One fixed banner image per industry, shown only on the root screen (not
-  // on every drilled-down category). These are specific hosted files, not
-  // derived from any resource row.
-  String get _bannerUrl => widget.pageId == 2
-      ? 'https://cdn.800globalenglish.com/content/app/construction_app.png'
-      : 'https://cdn.800globalenglish.com/content/app/restaurant_app.png';
+  // on every drilled-down category). Bundled as a local asset instead of a
+  // CDN fetch since these never change and this way they show instantly,
+  // even offline, from the very first launch.
+  String get _bannerAssetPath => widget.pageId == 2
+      ? 'assets/images/construction_app.png'
+      : 'assets/images/restaurant_app.png';
+  // Sounds always live under the "restaurant" folder regardless of industry —
+  // confirmed this matches the web version's own behavior (it hardcodes this
+  // same path even on the Construction page). Not industry-aware; this is
+  // just where the actual files are.
   String get _soundsBaseUrl => 'https://cdn.800globalenglish.com/content/tradelingo/restaurant/sounds';
 
   Future<void> _playPreview(ResourceItem item) async {
@@ -346,10 +369,8 @@ class _ResourceBrowserScreenState extends State<ResourceBrowserScreen> {
       );
     }
 
-    final children = _allItems!
-        .where((item) => item.parentId == widget.parentId)
-        .toList()
-      ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+    final rawChildren = _allItems!.where((item) => item.parentId == widget.parentId).toList();
+    final children = _sortWithCompletedAtBottom(rawChildren);
 
     final wordSiblings = children.where((c) => !c.isFolder).toList();
 
@@ -367,8 +388,8 @@ class _ResourceBrowserScreenState extends State<ResourceBrowserScreen> {
           // Banner — only on the root screen for this industry, not on
           // every drilled-down category screen.
           if (widget.parentId == 0)
-            Image.network(
-              _bannerUrl,
+            Image.asset(
+              _bannerAssetPath,
               width: double.infinity,
               height: 160,
               fit: BoxFit.cover,

@@ -7,6 +7,10 @@ class SmartImage extends StatelessWidget {
   final double? width;
   final double? height;
   final BoxFit fit;
+  // NEW — lets callers show something more meaningful than a generic
+  // "broken image" icon when the file is missing or fails to load (e.g.
+  // an industry-specific icon instead).
+  final Widget? errorWidget;
 
   const SmartImage({
     super.key,
@@ -14,6 +18,7 @@ class SmartImage extends StatelessWidget {
     this.width,
     this.height,
     this.fit = BoxFit.contain,
+    this.errorWidget,
   });
 
   @override
@@ -30,7 +35,7 @@ class SmartImage extends StatelessWidget {
             height: height,
             fit: fit,
             errorBuilder: (context, error, stackTrace) =>
-            const Icon(Icons.image_not_supported, color: Colors.grey),
+            errorWidget ?? const Icon(Icons.image_not_supported, color: Colors.grey),
           );
         }
 
@@ -40,7 +45,7 @@ class SmartImage extends StatelessWidget {
           height: height,
           fit: fit,
           errorBuilder: (context, error, stackTrace) =>
-          const Icon(Icons.image_not_supported, color: Colors.grey),
+          errorWidget ?? const Icon(Icons.image_not_supported, color: Colors.grey),
         );
       },
     );

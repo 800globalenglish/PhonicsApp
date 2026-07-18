@@ -1,7 +1,7 @@
-name: global_english_800_trade
+name: global_english_800_phonics
 description: 800 Global English Trade Lingo
 publish_to: 'none'
-version: 1.0.0+2
+version: 1.0.0+5
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
@@ -32,6 +32,8 @@ flutter:
   assets:
     - assets/logo/800logo.png
     - assets/sounds/
+    - assets/images/restaurant_app.png
+    - assets/images/construction_app.png
 
 flutter_icons:
   android: true

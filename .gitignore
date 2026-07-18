@@ -50,3 +50,4 @@ android/key.properties
 
 # Local machine paths
 android/local.properties
+*.jks

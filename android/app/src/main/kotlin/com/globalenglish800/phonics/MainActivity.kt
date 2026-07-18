@@ -1,4 +1,4 @@
-package com.globalenglish800.tradelingo
+package com.globalenglish800.phonics
 
 import io.flutter.embedding.android.FlutterActivity
 

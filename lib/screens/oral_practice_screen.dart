@@ -8,30 +8,11 @@ import '../services/content_package_service.dart';
 import '../services/resource_strings.dart';
 import '../widgets/smart_image.dart';
 
-// ============================================================================
-// CHANGED FROM ORIGINAL — this screen used to take a Lesson and loop through
-// lesson.keywords, saving pass/fail to LocalDb and pushing results to the
-// server via ApiService.syncPendingResults(). None of that exists anymore:
-//
-//   - Lesson/Keyword models are gone (lesson-specific, removed)
-//   - LocalDb is gone (was entirely quiz/lesson sync tables)
-//   - Recordings stay on the phone only — no upload, no server sync call
-//
-// Instead this screen now takes a plain list of word items — the same shape
-// GetResourceTree returns for a category's words: title, imageUrl, audioUrl.
-// Pass/fail no longer persists between sessions (no LocalDb to store it in);
-// self-grading here just moves to the next word in THIS session. If you want
-// "don't show me words I've already passed" to persist across app restarts
-// later, that would need a small new local store — much simpler than the
-// old LocalDb, just a set of passed titles per category, but intentionally
-// left out for now to keep this rebuild focused.
-// ============================================================================
-
 class PracticeWordItem {
   final String title;
-  final String otherTitle; // translated title, empty if none for the selected language
-  final String imageUrl; // filename, e.g. "02_01_01_01_01.jpg"
-  final String audioUrl; // filename, e.g. "02_01_01_01_01.mp3" (native pronunciation)
+  final String otherTitle;
+  final String imageUrl;
+  final String audioUrl;
 
   const PracticeWordItem({
     required this.title,
@@ -45,9 +26,6 @@ class OralPracticeScreen extends StatefulWidget {
   final String categoryTitle;
   final List<PracticeWordItem> items;
   final int initialIndex;
-  // 1 = Restaurant/Household, 2 = Construction/General — used to build the
-  // correct sounds folder path (images are flat/shared, but sounds live in
-  // per-industry folders per the web version's CDN layout).
   final int pageId;
 
   const OralPracticeScreen({
@@ -82,17 +60,7 @@ class _OralPracticeScreenState extends State<OralPracticeScreen> {
   bool _isComparing = false;
   bool _isPaused = false;
 
-  // Tracks which word indices have been marked Fail at least once this
-  // session (and haven't since been marked Pass) — used to offer a
-  // "practice failed words" option once the whole list has been graded.
   final Set<int> _failedIndices = {};
-
-  // Tracks every word that's been explicitly graded (Pass OR Fail) at
-  // least once this session, regardless of current pass/fail status.
-  // "Oral Exam Complete" now means every word has one of these, not just
-  // "you scrolled to the last position" — since someone can jump straight
-  // to any word via its mic button on the browse screen, position alone
-  // doesn't mean everything's been covered.
   final Set<int> _gradedIndices = {};
 
   Completer<void>? _activePlaybackCompleter;
@@ -127,36 +95,13 @@ class _OralPracticeScreenState extends State<OralPracticeScreen> {
   }
 
   Future<void> _playMyRecordingAndWait() async {
-    if (_recordingPath == null) {
-      // ignore: avoid_print
-      print('DEBUG _playMyRecordingAndWait: _recordingPath is null');
-      return;
-    }
+    if (_recordingPath == null) return;
     final file = File(_recordingPath!);
     final exists = await file.exists();
-    final size = exists ? await file.length() : 0;
-    // ignore: avoid_print
-    print('DEBUG _playMyRecordingAndWait: path=$_recordingPath exists=$exists size=$size bytes');
-    if (!exists || size == 0) {
-      // ignore: avoid_print
-      print('DEBUG _playMyRecordingAndWait: file missing or empty, skipping playback');
-      return;
-    }
-    try {
-      await _playAndWait(_myRecordingPlayer, DeviceFileSource(_recordingPath!));
-    } catch (e) {
-      // ignore: avoid_print
-      print('DEBUG _playMyRecordingAndWait: playback threw: $e');
-      rethrow;
-    }
+    if (!exists) return;
+    await _playAndWait(_myRecordingPlayer, DeviceFileSource(_recordingPath!));
   }
 
-  // Checks the local downloaded copy first (from images.zip/sounds.zip),
-  // falling back to the CDN if it's not there. Sounds on the CDN always
-  // live under the "restaurant" folder regardless of industry — this
-  // matches the web version's own behavior (it hardcodes this same path
-  // even on the Construction page) — but that only applies to the network
-  // fallback; the local downloaded copy doesn't split by industry at all.
   String _nativeAudioUrl(PracticeWordItem item) {
     return 'https://cdn.800globalenglish.com/content/tradelingo/restaurant/sounds/${item.audioUrl}';
   }
@@ -195,7 +140,7 @@ class _OralPracticeScreenState extends State<OralPracticeScreen> {
     }
 
     final item = widget.items[_currentIndex];
-    final dir = await getApplicationDocumentsDirectory(); // persistent, not temp
+    final dir = await getApplicationDocumentsDirectory();
     final safeTitle = item.title.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '_');
     final path = '${dir.path}/tradelingo_${safeTitle}_${DateTime.now().millisecondsSinceEpoch}.m4a';
 
@@ -210,9 +155,7 @@ class _OralPracticeScreenState extends State<OralPracticeScreen> {
   }
 
   Future<void> _stopRecording() async {
-    final actualPath = await _recorder.stop();
-    // ignore: avoid_print
-    print('DEBUG _stopRecording: recorder.stop() returned path=$actualPath, our tracked path=$_recordingPath');
+    await _recorder.stop();
     setState(() {
       _isRecording = false;
       _hasRecording = true;
@@ -236,16 +179,14 @@ class _OralPracticeScreenState extends State<OralPracticeScreen> {
       try {
         await _playMyRecordingAndWait();
       } catch (e) {
-        // ignore: avoid_print
-        print('DEBUG comparison loop: recording playback failed: $e');
+        // ignore
       }
       if (!_isComparing || _isPaused || !mounted) continue;
 
       try {
         await _playNativeAndWait();
       } catch (e) {
-        // ignore: avoid_print
-        print('DEBUG comparison loop: native playback failed: $e');
+        // ignore
       }
     }
   }
@@ -273,12 +214,6 @@ class _OralPracticeScreenState extends State<OralPracticeScreen> {
     }
   }
 
-  // Pass: marks this word graded, clears any earlier fail mark, then jumps
-  // to the next word that hasn't been graded yet (wrapping around the list
-  // if needed) — or finishes if that was the last ungraded one. Fail:
-  // marks this word graded AND failed, resets the recording so you can
-  // try it again right here, and also checks completion (grading the last
-  // remaining word can finish the session even if you failed it).
   Future<void> _selfGrade(bool passed) async {
     await _stopComparisonLoop();
     _gradedIndices.add(_currentIndex);
@@ -298,11 +233,6 @@ class _OralPracticeScreenState extends State<OralPracticeScreen> {
     }
   }
 
-  // Finds the next word that hasn't been graded yet, searching forward
-  // from the current position and wrapping around the list — this covers
-  // the case where someone jumped in partway through via a word's mic
-  // button, so earlier words still need attention even after reaching
-  // the sequential "end" of the list.
   void _advanceAfterGrading() {
     if (_gradedIndices.length == widget.items.length) {
       _finishPractice();
@@ -323,15 +253,9 @@ class _OralPracticeScreenState extends State<OralPracticeScreen> {
         return;
       }
     }
-    // Shouldn't be reachable given the length check above, but just in case.
     _finishPractice();
   }
 
-  // Plain sequential navigation, used only by the Previous/Next arrows —
-  // this never grades anything and never triggers "Exam Complete" on its
-  // own. Completion is entirely driven by _selfGrade/_advanceAfterGrading
-  // now, since someone can jump to any word directly via its mic button,
-  // so just scrolling to the last position doesn't mean everything's done.
   void _nextItem() {
     if (_currentIndex < widget.items.length - 1) {
       setState(() {
@@ -344,9 +268,6 @@ class _OralPracticeScreenState extends State<OralPracticeScreen> {
     }
   }
 
-  // NEW — lets someone move forward without recording/grading first, so they
-  // can just page through and listen/practice at their own pace instead of
-  // being forced back out to the word list after every single word.
   Future<void> _skipToNext() async {
     await _stopComparisonLoop();
     final wasLastItem = _currentIndex >= widget.items.length - 1;
@@ -389,8 +310,8 @@ class _OralPracticeScreenState extends State<OralPracticeScreen> {
           if (hasFailed)
             TextButton(
               onPressed: () {
-                Navigator.of(context).pop(); // close dialog
-                Navigator.of(context).pop(); // close this practice screen
+                Navigator.of(context).pop();
+                Navigator.of(context).pop();
                 Navigator.of(context).push(
                   MaterialPageRoute(
                     builder: (_) => OralPracticeScreen(
@@ -454,6 +375,15 @@ class _OralPracticeScreenState extends State<OralPracticeScreen> {
                     url: 'https://cdn.800globalenglish.com/content/tradelingo/images/${item.imageUrl}',
                     width: 225,
                     height: 225,
+                    // NEW — falls back to the same industry icon used
+                    // everywhere else (browse list, home screen) instead of
+                    // a generic "broken image" glyph when the word's photo
+                    // is missing or fails to load.
+                    errorWidget: Icon(
+                      widget.pageId == 2 ? Icons.construction : Icons.restaurant,
+                      size: 80,
+                      color: const Color(0xFF800000),
+                    ),
                   ),
                 ),
               const SizedBox(height: 16),
@@ -472,9 +402,6 @@ class _OralPracticeScreenState extends State<OralPracticeScreen> {
               ],
               const SizedBox(height: 16),
 
-              // Round play button — plays the native pronunciation before a
-              // recording exists, or toggles the compare-loop play/pause
-              // once a recording has been made.
               Center(
                 child: SizedBox(
                   width: 48,
@@ -511,8 +438,6 @@ class _OralPracticeScreenState extends State<OralPracticeScreen> {
                   ),
                   onPressed: _isRecording ? _stopRecording : _startRecording,
                 ),
-
-
 
               if (_hasRecording) ...[
                 Row(
@@ -564,10 +489,6 @@ class _OralPracticeScreenState extends State<OralPracticeScreen> {
 
               const SizedBox(height: 12),
 
-              // Small previous/next arrows — always available, independent
-              // of recording/self-grading, so someone can just move through
-              // every word in the list without being forced back out to the
-              // browse screen.
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
