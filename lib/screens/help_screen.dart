@@ -1,11 +1,12 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import '../services/resource_strings.dart';
+import '../widgets/debug_file_label.dart';
 
 class HelpScreen extends StatelessWidget {
   const HelpScreen({super.key});
 
   // Each section: a header key, followed by its list of {question, answer} keys.
-  // CHANGED — an item can now be {'answer': key} with NO 'question' — in
+  // CHANGED â€” an item can now be {'answer': key} with NO 'question' â€” in
   // that case the section's header itself becomes the expandable dropdown
   // trigger, and there's no separate bold header line above it (since the
   // header IS the tappable row now).
@@ -128,7 +129,7 @@ class HelpScreen extends StatelessWidget {
               final items = (section['items'] as List).cast<Map<String, String>>();
               final headerKey = section['header'] as String;
 
-              // NEW — a section with exactly one item that has NO
+              // NEW â€” a section with exactly one item that has NO
               // 'question' key: the header itself becomes the expandable
               // dropdown trigger, its answer is the content. No separate
               // bold header line, no crash from a missing question key.
@@ -162,7 +163,7 @@ class HelpScreen extends StatelessWidget {
                 );
               }
 
-              // Normal case — bold header, then one ExpansionTile per
+              // Normal case â€” bold header, then one ExpansionTile per
               // question/answer pair underneath it.
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -211,7 +212,7 @@ class HelpScreen extends StatelessWidget {
               );
             }(),
           ],
-          // Closing note — plain text, not a Q&A, so it isn't wrapped in an ExpansionTile
+          // Closing note â€” plain text, not a Q&A, so it isn't wrapped in an ExpansionTile
           Padding(
             padding: const EdgeInsets.fromLTRB(4, 16, 4, 24),
             child: Text(
@@ -221,6 +222,7 @@ class HelpScreen extends StatelessWidget {
           ),
         ],
       ),
+      bottomNavigationBar: const DebugFileLabel(fileName: 'help_screen.dart'),
     );
   }
 }

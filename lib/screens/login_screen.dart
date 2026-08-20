@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/api_service.dart';
 import '../services/resource_strings.dart';
@@ -6,6 +6,7 @@ import 'splash_screen.dart';
 import 'welcome_download_screen.dart';
 import 'welcome_wizard_screen.dart';
 import '../widgets/app_header.dart';
+import '../widgets/debug_file_label.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -103,7 +104,7 @@ class _LoginScreenState extends State<LoginScreen> {
           icon: const Icon(Icons.arrow_back, color: Colors.white),
           onPressed: () {
             // Always lands on the Choose Language screen specifically, with
-            // the whole stack reset beneath it — so there's nothing left to
+            // the whole stack reset beneath it â€” so there's nothing left to
             // "pop" to if the person then hits back again on THAT screen.
             Navigator.of(context).pushAndRemoveUntil(
               MaterialPageRoute(builder: (_) => const WelcomeWizardScreen()),
@@ -121,7 +122,7 @@ class _LoginScreenState extends State<LoginScreen> {
               const AppHeader(height: 60),
               const SizedBox(height: 16),
               Text(
-                ResourceStrings.instance.get('aiadd2032'),
+                ResourceStrings.instance.get('phonics'),
                 textAlign: TextAlign.center,
                 style: const TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.w500),
               ),
@@ -200,6 +201,7 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
         ),
       ),
+      bottomNavigationBar: const DebugFileLabel(fileName: 'login_screen.dart'),
     );
   }
 }

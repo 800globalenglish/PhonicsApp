@@ -1,4 +1,4 @@
-import 'dart:io';
+﻿import 'dart:io';
 import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
@@ -6,27 +6,27 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:archive/archive.dart';
 
 // ============================================================================
-// TradeLingo's offline content is ONE combined package covering BOTH
-// industries (Restaurant/Household and Construction/General) — not split
-// per industry, since filenames never collide between them. It's split into
+// Phonics' offline content is ONE combined package covering
+// industries (Restaurant/Household and Construction/General) â€” not split
+// since filenames are unique. It's split into
 // two zips (images, sounds) rather than one, mirroring the same pattern the
 // original 800 Global English app used for its own content package.
 //
-// Each zip's internal structure has its folder name at the root — i.e.
+// Each zip's internal structure has its folder name at the root â€” i.e.
 // images.zip contains an "images/" folder with every file directly inside
-// it (no per-category subfolders, no separate tmb — same file serves both
+// it (no per-category subfolders, no separate tmb â€” same file serves both
 // full-size and thumbnail use), and sounds.zip contains a "sounds/" folder
 // the same way. Extracting both into the same local folder produces:
 //
-//   tradelingo-content/
+//   phonics-content/
 //       images/
 //           (every image file, both industries combined)
 //       sounds/
 //           (every audio file, both industries combined)
 // ============================================================================
-const String imagesZipUrl = 'https://cdn.800globalenglish.com/content/app/tradelingo/images.zip';
-const String soundsZipUrl = 'https://cdn.800globalenglish.com/content/app/tradelingo/sounds.zip';
-const String versionUrl = 'https://cdn.800globalenglish.com/content/app/tradelingo/version.txt';
+const String imagesZipUrl = 'https://cdn.800globalenglish.com/content/app/phonics/images.zip';
+const String soundsZipUrl = 'https://cdn.800globalenglish.com/content/app/phonics/sounds.zip';
+const String versionUrl = 'https://cdn.800globalenglish.com/content/app/phonics/version.txt';
 
 class DownloadProgress {
   final int bytesReceived;
@@ -54,14 +54,14 @@ class ContentPackageService {
 
   Future<void> loadLocalStatus() async {
     final prefs = await SharedPreferences.getInstance();
-    _isContentAvailableLocally = prefs.getBool('tradeLingoContentDownloaded') ?? false;
+    _isContentAvailableLocally = prefs.getBool('phonicsContentDownloaded') ?? false;
     _statusLoadAttempted = true;
   }
 
   // Ensures loadLocalStatus() has run at least once before anything checks
   // _isContentAvailableLocally. Previously this relied on something in the
   // UI (e.g. main.dart or splash screen) remembering to call
-  // loadLocalStatus() at app startup — if that call was ever missing, this
+  // loadLocalStatus() at app startup â€” if that call was ever missing, this
   // flag would silently stay false forever after a fresh app launch, making
   // every local file lookup wrongly report "not downloaded" even when the
   // content genuinely was downloaded in a previous session.
@@ -73,7 +73,7 @@ class ContentPackageService {
 
   Future<Directory> _getContentDir() async {
     final dir = await getApplicationSupportDirectory();
-    final contentDir = Directory('${dir.path}/tradelingo-content');
+    final contentDir = Directory('${dir.path}/phonics-content');
     if (!await contentDir.exists()) {
       await contentDir.create(recursive: true);
     }
@@ -100,7 +100,7 @@ class ContentPackageService {
       if (!_isContentAvailableLocally) return true; // never downloaded yet
 
       final prefs = await SharedPreferences.getInstance();
-      final localVersion = prefs.getInt('tradeLingoContentVersion') ?? 0;
+      final localVersion = prefs.getInt('phonicsContentVersion') ?? 0;
 
       final response = await http.get(Uri.parse(versionUrl));
       if (response.statusCode != 200) return false;
@@ -114,7 +114,7 @@ class ContentPackageService {
 
   // ---------- download + extract ----------
 
-  // Public entry point wraps the real attempt in a retry loop — a flaky
+  // Public entry point wraps the real attempt in a retry loop â€” a flaky
   // connection can produce a truncated/corrupted zip that only reveals
   // itself once decoding is attempted, so this detects that and silently
   // retries once before giving up for real.
@@ -151,7 +151,7 @@ class ContentPackageService {
 
     try {
       final baseDir = await getApplicationSupportDirectory();
-      tempDir = Directory('${baseDir.path}/tradelingo-content-tmp');
+      tempDir = Directory('${baseDir.path}/phonics-content-tmp');
       if (await tempDir.exists()) {
         await tempDir.delete(recursive: true);
       }
@@ -200,7 +200,7 @@ class ContentPackageService {
         if (entity is Directory) {
           final count = await entity.list().length;
           // ignore: avoid_print
-          print('DEBUG   [folder] ${entity.path} — $count items inside');
+          print('DEBUG   [folder] ${entity.path} â€” $count items inside');
         } else {
           // ignore: avoid_print
           print('DEBUG   [file] ${entity.path}');
@@ -211,8 +211,8 @@ class ContentPackageService {
       final newVersion = int.tryParse(versionResponse.body.trim()) ?? 0;
 
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setInt('tradeLingoContentVersion', newVersion);
-      await prefs.setBool('tradeLingoContentDownloaded', true);
+      await prefs.setInt('phonicsContentVersion', newVersion);
+      await prefs.setBool('phonicsContentDownloaded', true);
 
       _isContentAvailableLocally = true;
       onStatus?.call('done');
@@ -235,10 +235,10 @@ class ContentPackageService {
   // Downloads one zip, verifies its size matches what the server promised,
   // decodes it, and extracts it directly into tempDir/destinationSubfolder.
   //
-  // IMPORTANT — this deliberately ignores whatever internal folder
+  // IMPORTANT â€” this deliberately ignores whatever internal folder
   // structure the zip itself has. We found (via debug logging) that these
   // particular zips just contain loose files at their root, no "images" or
-  // "sounds" wrapper folder inside them — so instead of trusting
+  // "sounds" wrapper folder inside them â€” so instead of trusting
   // file.name from the archive (which would land everything at the root
   // of tempDir), every extracted file is forced into the correct named
   // subfolder using only its basename. This works regardless of whether
@@ -325,15 +325,15 @@ class ContentPackageService {
   // Given a plain filename, returns the local extracted file path if it's
   // been downloaded and the file exists there, or null if not (caller
   // should fall back to the CDN URL in that case). Same file serves both
-  // full-size and thumbnail use — there's no separate tmb copy.
+  // full-size and thumbnail use â€” there's no separate tmb copy.
   Future<String?> resolveLocalImagePath(String filename) => _resolveLocal('images/$filename');
   Future<String?> resolveLocalThumbPath(String filename) => _resolveLocal('images/$filename');
   Future<String?> resolveLocalSoundPath(String filename) => _resolveLocal('sounds/$filename');
 
   // Convenience wrapper for SmartImage, which passes a full CDN URL rather
-  // than a bare filename — just pulls the filename off the end and checks
+  // than a bare filename â€” just pulls the filename off the end and checks
   // the local images/ folder. Not used for audio (audio playback still
-  // hits the CDN directly for now — a remaining TODO).
+  // hits the CDN directly for now â€” a remaining TODO).
   Future<String?> resolveLocalPath(String url) {
     final filename = url.split('/').last;
     return resolveLocalImagePath(filename);
@@ -350,7 +350,7 @@ class ContentPackageService {
     final localFile = File('${contentDir.path}/$relativePath');
     final exists = await localFile.exists();
     // ignore: avoid_print
-    print('DEBUG _resolveLocal: checked ${localFile.path} — exists=$exists');
+    print('DEBUG _resolveLocal: checked ${localFile.path} â€” exists=$exists');
     return exists ? localFile.path : null;
   }
 }

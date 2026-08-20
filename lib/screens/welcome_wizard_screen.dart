@@ -1,9 +1,10 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/languages.dart';
 import '../services/resource_strings.dart';
 import 'login_screen.dart';
 import '../widgets/app_header.dart';
+import '../widgets/debug_file_label.dart';
 
 class WelcomeWizardScreen extends StatefulWidget {
   const WelcomeWizardScreen({super.key});
@@ -40,7 +41,7 @@ class _WelcomeWizardScreenState extends State<WelcomeWizardScreen> {
               const AppHeader(height: 60),
               const SizedBox(height: 16),
               Text(
-                ResourceStrings.instance.get('aiadd2032'),
+                ResourceStrings.instance.get('phonics'),
                 textAlign: TextAlign.center,
                 style: const TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.w500),
               ),
@@ -106,6 +107,7 @@ class _WelcomeWizardScreenState extends State<WelcomeWizardScreen> {
           ),
         ),
       ),
+      bottomNavigationBar: const DebugFileLabel(fileName: 'welcome_wizard_screen.dart'),
     );
   }
 }

@@ -1,5 +1,5 @@
 
-const Map<String, int> tradeLingoLanguageIds = {
+const Map<String, int> phonicsLanguageIds = {
   'en-US': 1, // English — the base title on TradeLingo_Resources itself, not in OtherResources
   'zh-CN': 2, // Chinese (Simplified)
   'hi-IN': 3, // Hindi
@@ -21,6 +21,6 @@ const Map<String, int> tradeLingoLanguageIds = {
 };
 
 
-int tradeLingoLanguageIdFor(String appLanguageCode) {
-  return tradeLingoLanguageIds[appLanguageCode] ?? 1;
+int phonicsLanguageIdFor(String appLanguageCode) {
+  return phonicsLanguageIds[appLanguageCode] ?? 1;
 }

@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:audioplayers/audioplayers.dart';
@@ -7,6 +7,7 @@ import 'package:path_provider/path_provider.dart';
 import '../services/content_package_service.dart';
 import '../services/resource_strings.dart';
 import '../widgets/smart_image.dart';
+import '../widgets/debug_file_label.dart';
 
 class PracticeWordItem {
   final String title;
@@ -27,6 +28,7 @@ class OralPracticeScreen extends StatefulWidget {
   final List<PracticeWordItem> items;
   final int initialIndex;
   final int pageId;
+  final String soundAudioUrl;
 
   const OralPracticeScreen({
     super.key,
@@ -34,6 +36,7 @@ class OralPracticeScreen extends StatefulWidget {
     required this.items,
     this.initialIndex = 0,
     this.pageId = 1,
+    this.soundAudioUrl = '',
   });
 
   @override
@@ -103,7 +106,19 @@ class _OralPracticeScreenState extends State<OralPracticeScreen> {
   }
 
   String _nativeAudioUrl(PracticeWordItem item) {
-    return 'https://cdn.800globalenglish.com/content/tradelingo/restaurant/sounds/${item.audioUrl}';
+    return 'https://cdn.800globalenglish.com/content/phonics/sounds/${item.audioUrl}';
+  }
+
+  Future<void> _playSoundAudio() async {
+    if (widget.soundAudioUrl.isEmpty) return;
+    final localPath = await ContentPackageService.instance.resolveLocalSoundPath(widget.soundAudioUrl);
+    if (localPath != null) {
+      await _nativePlayer.play(DeviceFileSource(localPath));
+    } else {
+      await _nativePlayer.play(
+        UrlSource('https://cdn.800globalenglish.com/content/phonics/sounds/${widget.soundAudioUrl}'),
+      );
+    }
   }
 
   Future<Source> _nativeAudioSource(PracticeWordItem item) async {
@@ -142,7 +157,7 @@ class _OralPracticeScreenState extends State<OralPracticeScreen> {
     final item = widget.items[_currentIndex];
     final dir = await getApplicationDocumentsDirectory();
     final safeTitle = item.title.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '_');
-    final path = '${dir.path}/tradelingo_${safeTitle}_${DateTime.now().millisecondsSinceEpoch}.m4a';
+    final path = '${dir.path}/phonics_${safeTitle}_${DateTime.now().millisecondsSinceEpoch}.m4a';
 
     await _recorder.start(const RecordConfig(), path: path);
     setState(() {
@@ -372,15 +387,15 @@ class _OralPracticeScreenState extends State<OralPracticeScreen> {
                   width: 225,
                   height: 225,
                   child: SmartImage(
-                    url: 'https://cdn.800globalenglish.com/content/tradelingo/images/${item.imageUrl}',
+                    url: 'https://cdn.800globalenglish.com/content/phonics/images/${item.imageUrl}',
                     width: 225,
                     height: 225,
-                    // NEW — falls back to the same industry icon used
+                    // NEW â€” falls back to the same fallback icon used
                     // everywhere else (browse list, home screen) instead of
                     // a generic "broken image" glyph when the word's photo
                     // is missing or fails to load.
                     errorWidget: Icon(
-                      widget.pageId == 2 ? Icons.construction : Icons.restaurant,
+                      Icons.spellcheck,
                       size: 80,
                       color: const Color(0xFF800000),
                     ),
@@ -398,6 +413,14 @@ class _OralPracticeScreenState extends State<OralPracticeScreen> {
                   item.otherTitle,
                   style: const TextStyle(fontSize: 18, color: Colors.grey),
                   textAlign: TextAlign.center,
+                ),
+              ],
+              if (widget.soundAudioUrl.isNotEmpty) ...[
+                const SizedBox(height: 16),
+                ElevatedButton.icon(
+                  icon: const Icon(Icons.graphic_eq),
+                  label: const Text('Play Sound'),
+                  onPressed: _playSoundAudio,
                 ),
               ],
               const SizedBox(height: 16),
@@ -509,6 +532,7 @@ class _OralPracticeScreenState extends State<OralPracticeScreen> {
           ),
         ),
       ),
+      bottomNavigationBar: const DebugFileLabel(fileName: 'resource_browser_screen.dart'),
     );
   }
 }

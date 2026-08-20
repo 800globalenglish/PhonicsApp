@@ -1,15 +1,21 @@
+﻿import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'content_download_screen.dart';
 import 'resource_browser_screen.dart';
 import 'login_screen.dart';
+import '../models/resource_item.dart';
 import '../services/languages.dart';
 import '../services/api_service.dart';
+import '../services/phonics_language_map.dart';
 import '../widgets/app_header.dart';
 import '../services/content_package_service.dart';
 import '../services/resource_strings.dart';
 import 'help_screen.dart';
+import 'phonics_sprint_screen.dart';
+import 'phonics_results_screen.dart';
+import '../widgets/debug_file_label.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -20,11 +26,11 @@ class SplashScreen extends StatefulWidget {
 
 class _SplashScreenState extends State<SplashScreen> {
   String _selectedLanguage = 'en-US';
-  // The dropdown's current pick, which may differ from _selectedLanguage
-  // until the person actually confirms it with the arrow button.
   String _pendingLanguage = 'en-US';
   String? _username;
   bool _isConfirmingLanguage = false;
+  PhonicsSprintMode? _loadingSprintMode;
+  bool _isLoadingResults = false;
 
   final Map<String, String> _languages = appLanguages;
 
@@ -49,20 +55,15 @@ class _SplashScreenState extends State<SplashScreen> {
     });
   }
 
-  // Applies the pending language: saves it and reloads UI text. Unlike the
-  // original app, there's no per-language lesson content to pre-fetch here —
-  // word/image data for TradeLingo is fetched per-industry via
-  // GetResourceTree when someone actually opens an industry, not tied to
-  // this language switcher.
   Future<void> _confirmLanguageChange() async {
-    if (_pendingLanguage == _selectedLanguage) return; // nothing changed
+    if (_pendingLanguage == _selectedLanguage) return;
 
     final code = _pendingLanguage;
     setState(() => _isConfirmingLanguage = true);
 
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('selectedLanguage', code);
-    await ResourceStrings.instance.load(code); // falls back to cache gracefully when offline
+    await ResourceStrings.instance.load(code);
 
     if (!mounted) return;
     setState(() {
@@ -75,7 +76,6 @@ class _SplashScreenState extends State<SplashScreen> {
     );
   }
 
-  // Builds the personal subdomain link and copies it to the clipboard.
   Future<void> _copyShareLink() async {
     if (_username == null) return;
     final link = 'https://$_username.800globalenglish.com';
@@ -108,6 +108,64 @@ class _SplashScreenState extends State<SplashScreen> {
     );
   }
 
+  Future<List<ResourceItem>?> _loadTree() async {
+    final languageId = phonicsLanguageIdFor(_selectedLanguage);
+    final prefs = await SharedPreferences.getInstance();
+
+    var cached = prefs.getString(ApiService.resourceTreeCacheKey(phonicsPageId, languageId));
+    if (cached == null) {
+      final succeeded = await ApiService().fetchAndCacheResourceTree(pageId: phonicsPageId, languageId: languageId);
+      if (succeeded) {
+        cached = prefs.getString(ApiService.resourceTreeCacheKey(phonicsPageId, languageId));
+      }
+    }
+
+    if (cached == null) return null;
+
+    final decoded = (jsonDecode(cached) as List).cast<Map<String, dynamic>>();
+    return decoded.map((json) => ResourceItem.fromJson(json)).toList();
+  }
+
+  Future<void> _openSprint(PhonicsSprintMode mode) async {
+    setState(() => _loadingSprintMode = mode);
+    final items = await _loadTree();
+    if (!mounted) return;
+    setState(() => _loadingSprintMode = null);
+
+    if (items == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not load Phonics content. Check your connection and try again.')),
+      );
+      return;
+    }
+
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => PhonicsSprintScreen(allItems: items, mode: mode),
+      ),
+    );
+  }
+
+  Future<void> _openResults() async {
+    setState(() => _isLoadingResults = true);
+    final items = await _loadTree();
+    if (!mounted) return;
+    setState(() => _isLoadingResults = false);
+
+    if (items == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not load Phonics content. Check your connection and try again.')),
+      );
+      return;
+    }
+
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => PhonicsResultsScreen(allItems: items),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -125,7 +183,7 @@ class _SplashScreenState extends State<SplashScreen> {
                       const AppHeader(height: 60),
                       const SizedBox(height: 16),
                       Text(
-                        ResourceStrings.instance.get('aiadd2032'),
+                        ResourceStrings.instance.get('phonics'),
                         textAlign: TextAlign.center,
                         style: const TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.w500),
                       ),
@@ -200,18 +258,18 @@ class _SplashScreenState extends State<SplashScreen> {
                       SizedBox(
                         width: double.infinity,
                         child: ElevatedButton.icon(
-                          icon: const Icon(Icons.restaurant),
-                          label: Text(
-                            ResourceStrings.instance.get('aiadd1468'),
-                            style: const TextStyle(fontSize: 18),
+                          icon: const Icon(Icons.spellcheck),
+                          label: const Text(
+                            'Phonics',
+                            style: TextStyle(fontSize: 18),
                           ),
                           style: ElevatedButton.styleFrom(padding: const EdgeInsets.all(16)),
                           onPressed: () {
                             Navigator.of(context).push(
                               MaterialPageRoute(
                                 builder: (_) => ResourceBrowserScreen(
-                                  pageId: 1,
-                                  screenTitle: ResourceStrings.instance.get('aiadd1468'),
+                                  pageId: phonicsPageId,
+                                  screenTitle: 'Phonics',
                                 ),
                               ),
                             );
@@ -221,23 +279,74 @@ class _SplashScreenState extends State<SplashScreen> {
                       const SizedBox(height: 16),
                       SizedBox(
                         width: double.infinity,
-                        child: ElevatedButton.icon(
-                          icon: const Icon(Icons.construction),
-                          label: Text(
-                            ResourceStrings.instance.get('aiadd1469'),
-                            style: const TextStyle(fontSize: 18),
+                        child: OutlinedButton.icon(
+                          icon: _loadingSprintMode == PhonicsSprintMode.soundsOnly
+                              ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                          )
+                              : const Text('🔥', style: TextStyle(fontSize: 18)),
+                          label: const Text(
+                            'Phonics Quiz',
+                            style: TextStyle(fontSize: 16),
                           ),
-                          style: ElevatedButton.styleFrom(padding: const EdgeInsets.all(16)),
-                          onPressed: () {
-                            Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (_) => ResourceBrowserScreen(
-                                  pageId: 2,
-                                  screenTitle: ResourceStrings.instance.get('aiadd1469'),
-                                ),
-                              ),
-                            );
-                          },
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.white,
+                            side: const BorderSide(color: Colors.white54),
+                            padding: const EdgeInsets.all(16),
+                          ),
+                          onPressed: (_loadingSprintMode != null || _isLoadingResults)
+                              ? null
+                              : () => _openSprint(PhonicsSprintMode.soundsOnly),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          icon: _loadingSprintMode == PhonicsSprintMode.wordsPictures
+                              ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                          )
+                              : const Text('🖼️', style: TextStyle(fontSize: 18)),
+                          label: const Text(
+                            'Word Quiz',
+                            style: TextStyle(fontSize: 16),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.white,
+                            side: const BorderSide(color: Colors.white54),
+                            padding: const EdgeInsets.all(16),
+                          ),
+                          onPressed: (_loadingSprintMode != null || _isLoadingResults)
+                              ? null
+                              : () => _openSprint(PhonicsSprintMode.wordsPictures),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          icon: _isLoadingResults
+                              ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                          )
+                              : const Icon(Icons.bar_chart),
+                          label: const Text(
+                            'My Results',
+                            style: TextStyle(fontSize: 16),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.white,
+                            side: const BorderSide(color: Colors.white54),
+                            padding: const EdgeInsets.all(16),
+                          ),
+                          onPressed: (_loadingSprintMode != null || _isLoadingResults) ? null : _openResults,
                         ),
                       ),
                       const SizedBox(height: 32),
@@ -252,6 +361,46 @@ class _SplashScreenState extends State<SplashScreen> {
                             Navigator.of(context).push(
                               MaterialPageRoute(builder: (_) => const HelpScreen()),
                             );
+                          },
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Center(
+                        child: TextButton.icon(
+                          icon: const Icon(Icons.refresh, color: Colors.grey),
+                          label: const Text(
+                            'Reset Phonics Progress (testing)',
+                            style: TextStyle(color: Colors.grey),
+                          ),
+                          onPressed: () async {
+                            final confirmed = await showDialog<bool>(
+                              context: context,
+                              builder: (context) => AlertDialog(
+                                title: const Text('Reset progress?'),
+                                content: const Text(
+                                  'This clears every checkmark for all 44 sounds and their words on this device. This cannot be undone.',
+                                ),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () => Navigator.of(context).pop(false),
+                                    child: const Text('Cancel'),
+                                  ),
+                                  TextButton(
+                                    onPressed: () => Navigator.of(context).pop(true),
+                                    child: const Text('Reset'),
+                                  ),
+                                ],
+                              ),
+                            );
+                            if (confirmed == true) {
+                              final prefs = await SharedPreferences.getInstance();
+                              await prefs.remove('phonicsCompletedIds');
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('Progress reset.')),
+                                );
+                              }
+                            }
                           },
                         ),
                       ),
@@ -291,6 +440,7 @@ class _SplashScreenState extends State<SplashScreen> {
           ],
         ),
       ),
+      bottomNavigationBar: const DebugFileLabel(fileName: 'splash_screen.dart'),
     );
   }
 }

@@ -1,11 +1,12 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import '../services/content_package_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/resource_strings.dart';
 import '../services/api_service.dart';
-import '../services/tradelingo_language_map.dart';
+import '../services/phonics_language_map.dart';
 import 'splash_screen.dart';
+import '../widgets/debug_file_label.dart';
 
 class WelcomeDownloadScreen extends StatefulWidget {
   const WelcomeDownloadScreen({super.key});
@@ -118,9 +119,9 @@ class _WelcomeDownloadScreenState extends State<WelcomeDownloadScreen> {
     if (success) {
       final prefs = await SharedPreferences.getInstance();
       final appLanguageCode = prefs.getString('selectedLanguage') ?? 'en-US';
-      final languageId = tradeLingoLanguageIdFor(appLanguageCode);
+      final languageId = phonicsLanguageIdFor(appLanguageCode);
       // ignore: unawaited_futures
-      ApiService().prefetchBothIndustryTrees(languageId);
+      ApiService().prefetchPhonicsTree(languageId);
     }
   }
 
@@ -213,6 +214,7 @@ class _WelcomeDownloadScreenState extends State<WelcomeDownloadScreen> {
           ),
         ),
       ),
+      bottomNavigationBar: const DebugFileLabel(fileName: 'welcome_download_screen.dart'),
     );
   }
 }
